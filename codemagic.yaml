@@ -1,0 +1,41 @@
+workflows:
+  ios-simulator-build:
+    name: iOS Simulator build
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      xcode: latest
+    scripts:
+      - name: Show Xcode and project info
+        script: |
+          set -eo pipefail
+          xcodebuild -version
+          xcodebuild -list -project "MobileNotes.xcodeproj"
+      - name: Build unsigned .app for iOS Simulator
+        script: |
+          set -eo pipefail
+          xcodebuild build \
+            -project "MobileNotes.xcodeproj" \
+            -scheme "MobileNotes" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$CM_BUILD_DIR/build/DerivedData" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package simulator app
+        script: |
+          set -eo pipefail
+          mkdir -p "$CM_BUILD_DIR/build/artifacts"
+          APP_PATH=$(find "$CM_BUILD_DIR/build/DerivedData/Build/Products/Debug-iphonesimulator" -maxdepth 1 -type d -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app bundle found"
+            exit 1
+          fi
+          echo "Found app at: $APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$CM_BUILD_DIR/build/artifacts/MobileNotes-simulator.app.zip"
+    artifacts:
+      - build/artifacts/MobileNotes-simulator.app.zip
+      - build/DerivedData/Build/Products/Debug-iphonesimulator/*.app
+      - /tmp/xcodebuild_logs/*.log
